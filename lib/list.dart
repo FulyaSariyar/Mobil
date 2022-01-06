@@ -1,6 +1,9 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:xml/xml.dart';
+import 'package:share_plus/share_plus.dart';
 
 
 // RSS URL : https://www.donanimhaber.com/rss/tum
@@ -16,23 +19,16 @@ class _ListeState extends State<Liste>
 
   late var haberler = null;
 
+  //var Share;
+
   Future<bool> getData() async
   {
 
     var url = "https://www.donanimhaber.com/rss/tum";
-
-    Response data = await Dio().get(url);
-    //print(data.data);
-    var xmlData = data.data;
-
-
-    var xml  = XmlDocument.parse(xmlData);
-    //List books = xml.findElements("book") as List;
-    //print("Kitap Sayısı : ${books.length}");
-    haberler  = xml.findAllElements("item").toList();
-
-    print("Haberler Yüklendi : ${haberler.length}");
-
+    Response r = await Dio().get(url);
+    var xml = XmlDocument.parse(r.data);
+    haberler = xml.findAllElements("item").toList();
+    print("Haber Sayısı : ${haberler.length}");
     return true;
   }
 
@@ -40,58 +36,100 @@ class _ListeState extends State<Liste>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
+      appBar: AppBar(
+        centerTitle: true,
+        title: Text(
+          "DonanımHaber",
+          style: TextStyle(color: Colors.white,
+              fontWeight:FontWeight.bold, fontSize: 25),),
+      ),
+      body : Container(
         width: double.maxFinite,
-        child: Center(
-          child: FutureBuilder(
-            future: getData(),
-            builder: (context, snapshot)
+        child: FutureBuilder(
+          future: getData(),
+          builder: (context, snapshot)
+          {
+            // getData Sonuclanmadiysa
+            if (snapshot.connectionState != ConnectionState.done)
             {
-              if (snapshot.connectionState != ConnectionState.done)
-              {
-                return SizedBox(width: 100, height: 100, child: CircularProgressIndicator(),);
-              }
-              else
-              {
-                return
-                  ListView.builder(
-                    itemCount: haberler.length,
-                    itemBuilder: (context, index)
-                    {
+              return Center(
+                child: SizedBox(
+                  height: 150,
+                  width: 150,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 10,
+                  ),
+                ),
+              );
+            }
+            else
+            {
+              return ListView.builder(
+                itemCount: haberler.length,
+                itemBuilder: (context, index)
+                {
 
-                      var k = haberler[index];
-                      var title = k.getElement("title").text;
-                      var description = k.getElement("description").text;
-                      var img=k.getElement("enclosure").getAttribute('url');
+                  var baslik = haberler[index].getElement("title").text;
+                  var link = haberler[index].getElement("guid").text;
+                  var imgUrl = haberler[index]
+                      .getElement("enclosure").getAttribute("url");
+                  print("Başlık : ${baslik}");
+                  print("Haber Linki : ${link}");
+                  print("Resim URL : ${imgUrl}");
+                  return Card(
+                    elevation: 6,
+                    margin: EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                    child: InkWell(
+                      onTap: () async
+                      {
+                        print("Tapped @ ${index}");
+                        await launch(link);
+                      },
+                      onLongPress: ()
+                      {
+                        print("Long Pressed @ ${index}");
+                        Share.share(link, subject: baslik);
+                      },
+                      child: Container(
+                        width: double.maxFinite,
+                        child: Stack(
+                          alignment: Alignment.bottomCenter,
+                          children: [
+                            /*
+                                Image.network(
+                                  imgUrl, fit: BoxFit.fitWidth ,),
 
-                      return Card(
-                        margin: EdgeInsets.all(10),
-                        elevation: 15,
-                        child: Container(
-                          padding: EdgeInsets.all(10),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-
-                              Image.network("${img}"),
-                              Text("${title}"),
-                              SizedBox(height: 10,),
-                              Text("${description}")
-                            ],
-                          ),
+                                 */
+                            CachedNetworkImage(
+                              imageUrl: imgUrl,
+                              placeholder: (context, url)
+                              {
+                                return Image.asset("assets/dh_loader.png", fit: BoxFit.fitWidth,);
+                              },
+                            ),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              color: Colors.black54,
+                              alignment: Alignment.center,
+                              child: Text(
+                                baslik,
+                                style: TextStyle(fontSize: 20, color: Colors.white),
+                                //maxLines: 1,
+                                //overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                          ],
                         ),
-                      );
-
-
-
-                    },);
-              }
-
-            },
-          ),
+                      ),
+                    ),
+                  );
+                },);
+            }
+          },
         ),
       ),
     );
   }
+
 }
+
